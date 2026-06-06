@@ -1,0 +1,98 @@
+/* TRP Branding Standards — tokens from TIDAL_COLLAB_MASTER.md Section 7 */
+
+:root {
+  /* Colors */
+  --brand-blue: #42A5D7;
+  --brand-navy: #091B34;
+  --brand-navy-2: #001F45;
+  --brand-blue-lt: #99CCE6;
+  --brand-slate: #566E8F;
+  --brand-wash: #F2F6F8;
+  --brand-mist: #D7E3EA;
+  --brand-white: #FFFFFF;
+  
+  /* Status colors */
+  --pos: #5CB85C;
+  --neg: #D9534F;
+  --warn: #F0AD4E;
+  
+  /* Typography */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Global reset + phone-first base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--brand-wash);
+  color: var(--brand-navy);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--brand-navy);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.2s;
+}
+
+/* Primary button */
+.btn-primary {
+  background: var(--brand-blue);
+  color: var(--brand-white);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.btn-primary:hover {
+  filter: brightness(0.9);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* Cards */
+.card {
+  background: var(--brand-white);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(9, 27, 52, 0.08);
+}
+
+/* Input fields */
+input, textarea {
+  font-family: var(--font-body);
+  padding: 12px;
+  border: 1px solid var(--brand-mist);
+  border-radius: 8px;
+  font-size: 16px;
+  width: 100%;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--brand-blue);
+}
+
+/* Logo sizing */
+.logo {
+  height: 39px;
+  width: auto;
+}
