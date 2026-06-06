@@ -3,12 +3,14 @@ import { supabase } from './lib/supabase'
 import Login from './components/Auth/Login'
 import ProfileSetup from './components/Auth/ProfileSetup'
 import ToolLauncher from './components/Home/ToolLauncher'
+import CMAGenerator from './components/CMA/CMAGenerator'
 import './styles/brand.css'
 
 function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [activeTool, setActiveTool] = useState(null)
 
   useEffect(() => {
     // Check active session
@@ -88,7 +90,11 @@ function App() {
     return <ProfileSetup user={user} onComplete={() => fetchProfile(user.id)} />
   }
 
-  return <ToolLauncher user={user} profile={profile} />
+  if (activeTool === 'cma-generator') {
+    return <CMAGenerator onBack={() => setActiveTool(null)} />
+  }
+
+  return <ToolLauncher user={user} profile={profile} onLaunchTool={setActiveTool} />
 }
 
 export default App

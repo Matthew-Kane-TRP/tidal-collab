@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import logo from '../../assets/tidal_logo.svg'
 
-export default function ToolLauncher({ user, profile }) {
+export default function ToolLauncher({ user, profile, onLaunchTool }) {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     window.location.reload()
@@ -13,7 +13,8 @@ export default function ToolLauncher({ user, profile }) {
       name: 'CMA Generator',
       description: 'Create professional CMAs with AI-powered adjustments',
       icon: '📊',
-      available: true
+      available: true,
+      onLaunch: () => onLaunchTool('cma-generator')
     },
     {
       id: 'listing-presentation',
@@ -78,7 +79,7 @@ export default function ToolLauncher({ user, profile }) {
           {tools.map(tool => (
             <button
               key={tool.id}
-              onClick={() => tool.available && alert(`${tool.name} - Coming in Phase 2!`)}
+              onClick={() => tool.available && tool.onLaunch && tool.onLaunch()}
               disabled={!tool.available}
               className="card"
               style={{
