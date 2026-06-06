@@ -1,11 +1,6 @@
-import { supabase } from '../../lib/supabase'
 import logo from '../../assets/tidal_logo.svg'
 
 export default function ToolLauncher({ user, profile, onLaunchTool }) {
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    window.location.reload()
-  }
 
   const tools = [
     {
@@ -44,19 +39,7 @@ export default function ToolLauncher({ user, profile, onLaunchTool }) {
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <img src={logo} alt="Tidal Realty Partners" style={{ height: '32px', filter: 'brightness(0) invert(1)' }} />
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '14px', marginBottom: '4px' }}>{profile?.name || user.email}</p>
-            <button
-              onClick={handleLogout}
-              style={{
-                background: 'none',
-                color: 'var(--brand-blue-lt)',
-                fontSize: '12px',
-                textDecoration: 'underline',
-                padding: 0
-              }}
-            >
-              Sign Out
-            </button>
+            <p style={{ fontSize: '14px' }}>{profile?.name || user.email}</p>
           </div>
         </div>
       </header>
