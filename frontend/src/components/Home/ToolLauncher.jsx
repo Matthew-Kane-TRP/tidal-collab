@@ -12,17 +12,52 @@ export default function ToolLauncher({ user, profile, onLaunchTool }) {
       onLaunch: () => onLaunchTool('cma-generator')
     },
     {
-      id: 'listing-presentation',
-      name: 'Listing Presentation',
-      description: 'Generate polished listing presentations',
-      icon: '📁',
+      id: 'inspection-review',
+      name: 'Home Inspection Review',
+      description: 'Upload inspection PDFs → AI categorizes issues, estimates costs, suggests strategy',
+      icon: '🔍',
       available: false
     },
     {
-      id: 'description-writer',
-      name: 'Listing Description Writer',
-      description: 'AI-powered property descriptions',
-      icon: '✍️',
+      id: 'repair-request',
+      name: 'Repair Request Generator',
+      description: 'Convert inspection findings into professional due diligence repair requests',
+      icon: '🛠️',
+      available: false
+    },
+    {
+      id: 'contract-generator',
+      name: 'Contract Document Generator',
+      description: 'Dotloop + MLS integration: auto-populate contracts from listing data',
+      icon: '📋',
+      available: false
+    },
+    {
+      id: 'social-posts',
+      name: 'Social Post Generator',
+      description: 'Turn listings into Instagram/Facebook posts with captions & hashtags',
+      icon: '📱',
+      available: false
+    },
+    {
+      id: 'listing-alerts',
+      name: 'Listing Alert Builder',
+      description: 'Generate beautiful email/text templates for new listings',
+      icon: '📧',
+      available: false
+    },
+    {
+      id: 'fub-dashboard',
+      name: 'FUB Pipeline Dashboard',
+      description: 'Your Follow Up Boss stats and hot leads at a glance',
+      icon: '📈',
+      available: false
+    },
+    {
+      id: 'market-snapshot',
+      name: 'Market Snapshot',
+      description: 'Wilmington area market stats: inventory, DOM, price trends',
+      icon: '🏘️',
       available: false
     }
   ]
