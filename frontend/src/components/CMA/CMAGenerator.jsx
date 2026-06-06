@@ -30,9 +30,12 @@ export default function CMAGenerator({ onBack }) {
       if (data.comps) formData.append('comps', data.comps)
       if (data.competition) formData.append('competition', data.competition)
 
-      // Call backend API
-      const response = await fetch('/api/generate-cma', {
+      // Call backend API (production Supabase Edge Function)
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-cma`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        },
         body: formData
       })
 

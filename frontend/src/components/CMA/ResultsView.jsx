@@ -1,7 +1,8 @@
 export default function ResultsView({ data, onStartNew }) {
   const downloadPDF = () => {
-    // Trigger PDF download
-    window.open('/api/download-cma/' + data.id, '_blank')
+    // Trigger PDF download from Supabase Edge Function
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/download-cma?id=${data.id}`
+    window.open(url, '_blank')
   }
 
   return (
