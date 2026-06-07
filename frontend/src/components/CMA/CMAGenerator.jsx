@@ -3,6 +3,7 @@ import SubjectIntake from './SubjectIntake'
 import CompsUpload from './CompsUpload'
 import ProcessingView from './ProcessingView'
 import ResultsView from './ResultsView'
+import ToolIcon from '../icons/ToolIcon'
 
 export default function CMAGenerator({ onBack }) {
   const [step, setStep] = useState('subject') // 'subject' | 'comps' | 'processing' | 'results'
@@ -57,16 +58,9 @@ export default function CMAGenerator({ onBack }) {
     <div style={{ minHeight: '100vh', background: 'var(--brand-wash)', padding: '40px 20px' }}>
       {/* Header */}
       <div style={{ maxWidth: '1200px', margin: '0 auto 40px' }}>
-        <button
-          onClick={onBack}
-          style={{
-            background: 'none',
-            color: 'var(--brand-blue)',
-            fontSize: '14px',
-            marginBottom: '16px'
-          }}
-        >
-          ← Back to Tools
+        <button onClick={onBack} className="back-link" style={{ marginBottom: '16px' }}>
+          <ToolIcon name="back" size={18} />
+          Back to Tools
         </button>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
