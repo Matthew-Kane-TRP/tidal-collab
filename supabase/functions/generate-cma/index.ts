@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts'
-import Anthropic from 'npm:@anthropic-ai/sdk@0.24.0'
+import Anthropic from 'npm:@anthropic-ai/sdk@0.32.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,7 +86,7 @@ serve(async (req) => {
     // Step 1: Parse comps PDF
     console.log('Step 1: Parsing comps PDF...')
     const compsParseResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-sonnet-20240620',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -154,7 +154,7 @@ If you cannot extract a field, use reasonable defaults (empty string for text, 0
     // Step 2: Parse competition PDF
     console.log('Step 2: Parsing competition PDF...')
     const competitionParseResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-sonnet-20240620',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -204,7 +204,7 @@ Return ONLY valid JSON array, no markdown:
     // Step 3: Calculate adjustments
     console.log('Step 3: Calculating adjustments...')
     const adjustmentResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-sonnet-20240620',
       max_tokens: 8192,
       messages: [{
         role: 'user',
