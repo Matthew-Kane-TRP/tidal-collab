@@ -7,6 +7,38 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper to safely parse JSON from Claude responses
+function safeJSONParse(text: string): any {
+  try {
+    // Remove markdown code blocks if present
+    const cleaned = text
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+    
+    return JSON.parse(cleaned)
+  } catch (error) {
+    console.error('JSON parse error:', error)
+    console.error('Raw text:', text)
+    throw new Error(`Failed to parse JSON response: ${error.message}`)
+  }
+}
+
+// Validate parsed property data
+function validateProperty(prop: any, type: 'comp' | 'competition'): boolean {
+  const required = type === 'comp' 
+    ? ['address', 'soldPrice', 'heatedSqft', 'daysOnMarket']
+    : ['address', 'listPrice', 'heatedSqft', 'daysOnMarket']
+  
+  for (const field of required) {
+    if (prop[field] === undefined || prop[field] === null) {
+      console.warn(`Missing required field: ${field}`, prop)
+      return false
+    }
+  }
+  return true
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -14,35 +46,47 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== CMA Generation Request Started ===')
+    
     const formData = await req.formData()
     const subjectJson = formData.get('subject')
     const compsPdf = formData.get('comps')
     const competitionPdf = formData.get('competition')
 
-    if (!subjectJson || !compsPdf || !competitionPdf) {
-      throw new Error('Missing required fields')
+    // Validation
+    if (!subjectJson) {
+      throw new Error('Missing subject property data')
+    }
+    if (!compsPdf) {
+      throw new Error('Missing comparables PDF')
+    }
+    if (!competitionPdf) {
+      throw new Error('Missing competition PDF')
     }
 
-    const subject = JSON.parse(subjectJson)
+    const subject = JSON.parse(subjectJson as string)
+    console.log('Subject property:', subject.address || 'Manual entry')
     
     // Initialize Anthropic client
     const anthropic = new Anthropic({
       apiKey: Deno.env.get('ANTHROPIC_API_KEY'),
     })
 
-    // Convert PDFs to base64. NOTE: do NOT use btoa(String.fromCharCode(...uint8))
-    // — spreading a multi-hundred-KB PDF into String.fromCharCode overflows the
-    // argument stack (RangeError) and 500s on any real-world file. encodeBase64
-    // streams the buffer safely regardless of size.
-    const compsBuffer = await compsPdf.arrayBuffer()
-    const competitionBuffer = await competitionPdf.arrayBuffer()
+    // Convert PDFs to base64
+    console.log('Converting PDFs to base64...')
+    const compsBuffer = await (compsPdf as File).arrayBuffer()
+    const competitionBuffer = await (competitionPdf as File).arrayBuffer()
 
     const compsBase64 = encodeBase64(compsBuffer)
     const competitionBase64 = encodeBase64(competitionBuffer)
+    
+    console.log('Comps PDF size:', compsBuffer.byteLength, 'bytes')
+    console.log('Competition PDF size:', competitionBuffer.byteLength, 'bytes')
 
     // Step 1: Parse comps PDF
+    console.log('Step 1: Parsing comps PDF...')
     const compsParseResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -60,30 +104,57 @@ serve(async (req) => {
             text: `Extract ALL comparable sold properties from this PDF into structured JSON.
 
 For EACH property, extract:
-- address (full street address)
-- soldPrice (number, no commas)
-- heatedSqft (number)
+- address (full street address including city, state, zip)
+- soldPrice (number, no commas or dollar signs)
+- heatedSqft (number, living area square footage)
 - bedrooms (number)
 - bathrooms (number, support decimals like 2.5)
-- yearBuilt (number)
-- lotSize (number in acres, convert if needed)
-- daysOnMarket (number, "DOM")
-- listingDescription (full text)
-- features (object with boolean flags): { pool, adu, generator, newRoof, newHVAC, renovated, waterfront, dock, solar, oversizedLot }
+- yearBuilt (number, 4 digits)
+- lotSize (number in acres, convert from sqft if needed: sqft ÷ 43560)
+- daysOnMarket (number, look for "DOM" or "Days on Market")
+- listingDescription (brief summary of key features)
+- features (object with boolean flags): { 
+    pool, 
+    adu, 
+    generator, 
+    newRoof, 
+    newHVAC, 
+    renovated, 
+    waterfront, 
+    dock, 
+    solar, 
+    oversizedLot 
+  }
 
-Return ONLY valid JSON array with NO markdown formatting:
-[{"address": "...", "soldPrice": 450000, ...}, ...]`
+IMPORTANT: Return ONLY a valid JSON array, no markdown formatting, no explanations:
+[{"address": "...", "soldPrice": 450000, ...}, ...]
+
+If you cannot extract a field, use reasonable defaults (empty string for text, 0 for numbers, false for booleans).`
           }
         ]
       }],
     })
 
     const compsText = compsParseResponse.content[0].text
-    const comps = JSON.parse(compsText.replace(/```json\n?/g, '').replace(/```\n?/g, ''))
+    console.log('Comps parse response length:', compsText.length)
+    
+    const comps = safeJSONParse(compsText)
+    if (!Array.isArray(comps)) {
+      throw new Error('Comps parsing did not return an array')
+    }
+    
+    // Validate and filter comps
+    const validComps = comps.filter(c => validateProperty(c, 'comp'))
+    console.log(`Parsed ${validComps.length} valid comps out of ${comps.length} total`)
+    
+    if (validComps.length === 0) {
+      throw new Error('No valid comparable properties found in PDF')
+    }
 
     // Step 2: Parse competition PDF
+    console.log('Step 2: Parsing competition PDF...')
     const competitionParseResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -101,18 +172,18 @@ Return ONLY valid JSON array with NO markdown formatting:
             text: `Extract ALL active competition properties from this PDF into structured JSON.
 
 For EACH property, extract:
-- address
-- listPrice (number)
+- address (full street address)
+- listPrice (number, current asking price)
 - heatedSqft (number)
 - bedrooms (number)
 - bathrooms (number)
 - yearBuilt (number)
 - lotSize (acres)
 - daysOnMarket (number)
-- listingDescription (full text)
-- features (same as before)
+- listingDescription (brief summary)
+- features (same as before: pool, adu, generator, etc.)
 
-Return ONLY valid JSON array:
+Return ONLY valid JSON array, no markdown:
 [{"address": "...", "listPrice": 475000, ...}, ...]`
           }
         ]
@@ -120,67 +191,114 @@ Return ONLY valid JSON array:
     })
 
     const competitionText = competitionParseResponse.content[0].text
-    const competition = JSON.parse(competitionText.replace(/```json\n?/g, '').replace(/```\n?/g, ''))
+    console.log('Competition parse response length:', competitionText.length)
+    
+    const competition = safeJSONParse(competitionText)
+    if (!Array.isArray(competition)) {
+      throw new Error('Competition parsing did not return an array')
+    }
+    
+    const validCompetition = competition.filter(c => validateProperty(c, 'competition'))
+    console.log(`Parsed ${validCompetition.length} valid competition properties`)
 
     // Step 3: Calculate adjustments
+    console.log('Step 3: Calculating adjustments...')
     const adjustmentResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 8192,
       messages: [{
         role: 'user',
-        content: `You are a real estate CMA analyst. Calculate price adjustments for comparable properties.
+        content: `You are a real estate CMA analyst. Calculate precise price adjustments for comparable properties.
 
 **SUBJECT PROPERTY:**
 ${JSON.stringify(subject, null, 2)}
 
 **COMPARABLE SOLD PROPERTIES:**
-${JSON.stringify(comps, null, 2)}
+${JSON.stringify(validComps, null, 2)}
+
+**ACTIVE COMPETITION:**
+${JSON.stringify(validCompetition, null, 2)}
 
 **TASK:**
-1. Calculate average $/sqft from comps
-2. For EACH comp, calculate line-item adjustments to match the subject:
-   - Square footage adjustment (based on $/sqft)
-   - Lot size adjustment
-   - Bedroom count adjustment
-   - Bathroom count adjustment
-   - Age/year built adjustment
+1. Calculate average $/sqft from sold comps
+2. For EACH comp, calculate detailed line-item adjustments to match the subject:
+   - Square footage adjustment (difference × $/sqft)
+   - Lot size adjustment ($5,000-$15,000 per 0.25 acre difference)
+   - Bedroom/bathroom adjustments ($3,000 per bedroom, $2,500 per bathroom)
+   - Age adjustment ($500-$1,000 per year difference, max $20,000)
    - Quality/condition adjustment (subject quality: ${subject.quality}/10)
-   - Feature adjustments (pool, ADU, generator, renovations, waterfront, etc.)
+   - Feature adjustments (pool $10k-$30k, ADU $40k-$80k, generator $8k-$12k, etc.)
 
-3. Calculate adjusted price for each comp
-4. Derive suggested value/range for subject
-5. Write a 2-3 paragraph market narrative that:
-   - Reflects the CURRENT MARKET (high inventory, rate-sensitive buyers, listings sitting longer)
-   - Uses DOM and pricing data to support realistic pricing
-   - Avoids frothy "it'll sell instantly" language
-   - Is confident, data-driven, and realistic
+3. For EACH active competition property, calculate similar adjustments
 
-Return ONLY valid JSON:
+4. Calculate suggested value/range for subject based on adjusted comps
+
+5. Write a realistic 2-3 paragraph market narrative:
+   - Reference CURRENT market conditions (inventory levels, DOM trends)
+   - Be data-driven and conservative
+   - Avoid overly optimistic language
+   - Support pricing recommendation with facts
+
+**CRITICAL:** Return ONLY valid JSON with this exact structure:
 {
   "avgPricePerSqft": number,
   "comps": [
     {
-      "address": "...",
+      "address": "full address",
       "originalPrice": number,
+      "heatedSqft": number,
+      "bedrooms": number,
+      "bathrooms": number,
       "adjustments": [
-        {"factor": "Square Footage", "amount": number, "rationale": "..."},
+        {"factor": "Square Footage", "amount": number, "rationale": "brief explanation"},
         {"factor": "Lot Size", "amount": number, "rationale": "..."},
-        ...
+        {"factor": "Bedrooms", "amount": number, "rationale": "..."},
+        {"factor": "Bathrooms", "amount": number, "rationale": "..."},
+        {"factor": "Age/Condition", "amount": number, "rationale": "..."},
+        {"factor": "Quality", "amount": number, "rationale": "..."},
+        {"factor": "Features", "amount": number, "rationale": "list key features"}
       ],
+      "totalAdjustment": number,
       "adjustedPrice": number,
       "dom": number,
-      "notes": "Short summary of key features from description"
+      "notes": "key features summary"
+    }
+  ],
+  "competition": [
+    {
+      "address": "full address",
+      "listPrice": number,
+      "heatedSqft": number,
+      "adjustments": [...same structure...],
+      "totalAdjustment": number,
+      "adjustedPrice": number,
+      "dom": number,
+      "notes": "summary"
     }
   ],
   "suggestedValue": number,
   "valueRange": {"low": number, "high": number},
-  "narrative": "Market analysis paragraph(s)..."
-}`
+  "narrative": "2-3 paragraph market analysis"
+}
+
+No markdown code blocks, just pure JSON.`
       }],
     })
 
     const adjustmentText = adjustmentResponse.content[0].text
-    const analysis = JSON.parse(adjustmentText.replace(/```json\n?/g, '').replace(/```\n?/g, ''))
+    console.log('Adjustment response length:', adjustmentText.length)
+    
+    const analysis = safeJSONParse(adjustmentText)
+    
+    // Validation
+    if (!analysis.suggestedValue || !analysis.comps || !analysis.narrative) {
+      throw new Error('Analysis response missing required fields')
+    }
+
+    console.log('=== CMA Generation Successful ===')
+    console.log('Suggested value:', analysis.suggestedValue)
+    console.log('Comps analyzed:', analysis.comps.length)
+    console.log('Competition analyzed:', analysis.competition?.length || 0)
 
     // Return complete CMA data
     return new Response(
@@ -188,7 +306,7 @@ Return ONLY valid JSON:
         id: crypto.randomUUID(),
         subject,
         comps: analysis.comps,
-        competition,
+        competition: analysis.competition || [],
         suggestedValue: analysis.suggestedValue,
         valueRange: analysis.valueRange,
         narrative: analysis.narrative,
@@ -202,9 +320,17 @@ Return ONLY valid JSON:
     )
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('=== CMA Generation Error ===')
+    console.error('Error type:', error.constructor.name)
+    console.error('Error message:', error.message)
+    console.error('Error stack:', error.stack)
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack,
+        timestamp: new Date().toISOString()
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,

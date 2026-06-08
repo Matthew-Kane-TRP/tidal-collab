@@ -1,8 +1,21 @@
 export default function ResultsView({ data, onStartNew }) {
   const downloadPDF = () => {
-    // Trigger PDF download from Supabase Edge Function
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/download-cma?id=${data.id}`
-    window.open(url, '_blank')
+    console.log('Downloading PDF for CMA:', data.id)
+    
+    // Encode the entire CMA data as a URL parameter
+    const dataParam = encodeURIComponent(JSON.stringify(data))
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/download-cma?data=${dataParam}`
+    
+    // Open in new window which will show the HTML that can be printed to PDF
+    const printWindow = window.open(url, '_blank')
+    
+    // Give it a moment to load, then trigger print dialog
+    setTimeout(() => {
+      if (printWindow) {
+        printWindow.focus()
+        printWindow.print()
+      }
+    }, 1500)
   }
 
   return (
@@ -18,7 +31,7 @@ export default function ResultsView({ data, onStartNew }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="card">
           <p style={{ fontSize: '14px', color: 'var(--brand-slate)', marginBottom: '4px' }}>Subject Address</p>
-          <p style={{ fontSize: '18px', fontWeight: 600 }}>{data.subject.address}</p>
+          <p style={{ fontSize: '18px', fontWeight: 600 }}>{data.subject.address || 'Subject Property'}</p>
         </div>
 
         <div className="card">
@@ -26,18 +39,25 @@ export default function ResultsView({ data, onStartNew }) {
           <p style={{ fontSize: '24px', fontWeight: 700, color: 'var(--brand-blue)' }}>
             ${data.suggestedValue.toLocaleString()}
           </p>
+          {data.valueRange && (
+            <p style={{ fontSize: '12px', color: 'var(--brand-slate)', marginTop: '4px' }}>
+              Range: ${data.valueRange.low.toLocaleString()} - ${data.valueRange.high.toLocaleString()}
+            </p>
+          )}
         </div>
 
         <div className="card">
-          <p style={{ fontSize: '14px', color: 'var(--brand-slate)', marginBottom: '4px' }}>Comps Analyzed</p>
-          <p style={{ fontSize: '18px', fontWeight: 600 }}>{data.comps.length} properties</p>
+          <p style={{ fontSize: '14px', color: 'var(--brand-slate)', marginBottom: '4px' }}>Analysis</p>
+          <p style={{ fontSize: '18px', fontWeight: 600 }}>
+            {data.comps.length} comps + {data.competition?.length || 0} active
+          </p>
         </div>
       </div>
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
         <button onClick={downloadPDF} className="btn-primary" style={{ flex: 1 }}>
-          📥 Download PDF
+          📥 Download PDF Report
         </button>
         <button 
           onClick={onStartNew}
@@ -61,46 +81,135 @@ export default function ResultsView({ data, onStartNew }) {
       <div className="card">
         <h3 style={{ fontSize: '20px', marginBottom: '16px' }}>Preview</h3>
         
-        <div style={{ marginBottom: '24px' }}>
+        {/* Market Narrative */}
+        <div style={{ marginBottom: '32px' }}>
           <h4 style={{ fontSize: '16px', marginBottom: '12px', color: 'var(--brand-slate)' }}>
             Market Narrative
           </h4>
-          <p style={{ lineHeight: '1.6', color: 'var(--brand-navy)' }}>
+          <div style={{ 
+            background: 'var(--brand-wash)', 
+            borderLeft: '4px solid var(--brand-blue)',
+            padding: '16px',
+            lineHeight: '1.6', 
+            color: 'var(--brand-navy)' 
+          }}>
             {data.narrative}
-          </p>
+          </div>
         </div>
 
-        <div>
+        {/* Comparable Properties */}
+        <div style={{ marginBottom: '32px' }}>
           <h4 style={{ fontSize: '16px', marginBottom: '12px', color: 'var(--brand-slate)' }}>
-            Comparable Properties
+            Comparable Sold Properties
           </h4>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
               <thead>
                 <tr style={{ background: 'var(--brand-navy)', color: 'white' }}>
                   <th style={{ padding: '12px', textAlign: 'left' }}>Address</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Original Price</th>
+                  <th style={{ padding: '12px', textAlign: 'right' }}>Sold Price</th>
                   <th style={{ padding: '12px', textAlign: 'right' }}>Adjusted Price</th>
+                  <th style={{ padding: '12px', textAlign: 'center' }}>Sqft</th>
                   <th style={{ padding: '12px', textAlign: 'center' }}>DOM</th>
                 </tr>
               </thead>
               <tbody>
                 {data.comps.map((comp, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid var(--brand-mist)' }}>
-                    <td style={{ padding: '12px' }}>{comp.address}</td>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ fontWeight: 600 }}>{comp.address}</div>
+                      {comp.notes && (
+                        <div style={{ fontSize: '12px', color: 'var(--brand-slate)', marginTop: '4px' }}>
+                          {comp.notes}
+                        </div>
+                      )}
+                    </td>
                     <td style={{ padding: '12px', textAlign: 'right' }}>
                       ${comp.originalPrice.toLocaleString()}
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600 }}>
+                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: 'var(--brand-blue)' }}>
                       ${comp.adjustedPrice.toLocaleString()}
+                      {comp.totalAdjustment !== undefined && (
+                        <div style={{ 
+                          fontSize: '11px', 
+                          color: comp.totalAdjustment >= 0 ? '#059669' : '#DC2626',
+                          marginTop: '2px'
+                        }}>
+                          {comp.totalAdjustment >= 0 ? '+' : ''}${comp.totalAdjustment.toLocaleString()}
+                        </div>
+                      )}
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>{comp.dom}</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
+                      {comp.heatedSqft?.toLocaleString() || 'N/A'}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>{comp.dom || 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* Active Competition */}
+        {data.competition && data.competition.length > 0 && (
+          <div>
+            <h4 style={{ fontSize: '16px', marginBottom: '12px', color: 'var(--brand-slate)' }}>
+              Active Competition ({data.competition.length} properties)
+            </h4>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ background: '#F59E0B', color: 'white' }}>
+                    <th style={{ padding: '12px', textAlign: 'left' }}>Address</th>
+                    <th style={{ padding: '12px', textAlign: 'right' }}>List Price</th>
+                    <th style={{ padding: '12px', textAlign: 'right' }}>Adjusted Price</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>Sqft</th>
+                    <th style={{ padding: '12px', textAlign: 'center' }}>DOM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.competition.map((comp, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid var(--brand-mist)' }}>
+                      <td style={{ padding: '12px' }}>
+                        <div style={{ fontWeight: 600 }}>{comp.address}</div>
+                        {comp.notes && (
+                          <div style={{ fontSize: '12px', color: 'var(--brand-slate)', marginTop: '4px' }}>
+                            {comp.notes}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right' }}>
+                        ${comp.listPrice?.toLocaleString() || 'N/A'}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 600, color: '#F59E0B' }}>
+                        ${comp.adjustedPrice?.toLocaleString() || 'N/A'}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        {comp.heatedSqft?.toLocaleString() || 'N/A'}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>{comp.dom || 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Instructions */}
+      <div className="card" style={{ 
+        marginTop: '24px', 
+        background: '#EFF6FF', 
+        borderLeft: '4px solid #3B82F6' 
+      }}>
+        <h4 style={{ fontSize: '14px', marginBottom: '8px', color: '#1E40AF' }}>
+          💡 How to Save as PDF
+        </h4>
+        <p style={{ fontSize: '13px', color: '#1E3A8A', lineHeight: '1.5', margin: 0 }}>
+          Click "Download PDF Report" above. A new window will open with your professionally formatted 4-page CMA. 
+          Use your browser's Print function (Ctrl/Cmd+P) and select "Save as PDF" as the destination.
+        </p>
       </div>
     </div>
   )
